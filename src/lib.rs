@@ -1155,7 +1155,9 @@ unsafe fn update_auto_splitter_ui(
         if let Some(auto_splitter) = auto_splitters::get_list().get_for_game(game_name) {
             obs_property_set_enabled(
                 website_button,
-                auto_splitters::get_list().get_website_for_game(game_name).is_some(),
+                auto_splitters::get_list()
+                    .get_website_for_game(game_name)
+                    .is_some(),
             );
 
             if !auto_splitter.is_using_auto_splitting_runtime() {
@@ -1223,18 +1225,14 @@ unsafe extern "C" fn auto_splitter_activate_clicked(
     unsafe {
         let state: &mut State = &mut (*data.cast::<Mutex<State>>()).lock().unwrap();
 
-        state
+        let is_enabled = state
             .global_timer
             .auto_splitter_is_enabled
-            .fetch_xor(true, atomic::Ordering::Relaxed);
+            .load(atomic::Ordering::Relaxed);
 
-        auto_splitter_update_activation_label(prop, state);
-
-        if state
-            .global_timer
-            .auto_splitter_is_enabled
-            .load(atomic::Ordering::Relaxed)
-        {
+        if is_enabled {
+            auto_splitter_unload(&state.global_timer);
+        } else {
             if let Some(auto_splitter_path) = auto_splitters::get_downloader().download_for_game(
                 auto_splitters::get_list(),
                 state.global_timer.timer.get_timer().run().game_name(),
@@ -1244,9 +1242,9 @@ unsafe extern "C" fn auto_splitter_activate_clicked(
             } else {
                 error!("Couldn't download the auto splitter files.");
             }
-        } else {
-            auto_splitter_unload(&state.global_timer);
         }
+
+        auto_splitter_update_activation_label(prop, state);
 
         true
     }
